@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DeepSearch AI</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 30px; border-radius: 8px; }
+        input { padding: 12px; width: 300px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        #results { margin-top: 20px; padding: 20px; background: white; border-radius: 4px; white-space: pre-wrap; }
+        .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🕵️ DeepSearch AI</h1>
+        <form id="searchForm">
+            <textarea id="query" rows="4" cols="50" placeholder="Enter your search request" required></textarea>
+            <button type="submit">Search</button>
+        </form>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const freeText = document.getElementById('query').value.trim();
+            const resultsDiv = document.getElementById('results');
+            
+            if (!freeText) return;
+            
+            resultsDiv.innerHTML = 'Searching...';
+            
+            try {
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ free_text_context: freeText })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML = JSON.stringify(data, null, 2);
+                } else {
+                    resultsDiv.innerHTML = `<span class="error">Error: ${data.detail}</span>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<span class="error">Network error: ${error.message}</span>`;
+            }
+        });
+    </script>
+</body>
+</html>

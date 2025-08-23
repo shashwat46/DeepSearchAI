@@ -1,0 +1,36 @@
+# --- Environment Files ---
+# Ignore the .env file containing secrets
+.env
+
+# --- Python ---
+# Ignore the virtual environment folder
+.venv/
+venv/
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Build & Distribution ---
+/build/
+/dist/
+*.egg-info/
+*.egg
+
+# --- IDE & Editor Folders ---
+# VS Code
+.vscode/
+# PyCharm
+.idea/
+
+# --- Testing ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- OS-specific ---
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
