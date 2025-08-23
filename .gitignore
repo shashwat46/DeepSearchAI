@@ -34,3 +34,5 @@ htmlcov/
 .DS_Store
 # Windows
 Thumbs.db
+
+docs.txt

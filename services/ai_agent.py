@@ -4,27 +4,17 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 from schemas import SearchQuery, FinalProfile
 
-# --- Configuration (Done once at the module level) ---
-# Load environment variables from .env file
 load_dotenv()
 
-# Configure the Gemini API key
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     raise RuntimeError("GEMINI_API_KEY not set in environment. Please check your .env file.")
 genai.configure(api_key=api_key)
 
 
-# --- Agent Functions ---
-
 async def parse_user_request(text: str) -> SearchQuery:
-    """
-    Uses Gemini to parse a user's free-text request into a structured SearchQuery object.
-    This is the "Extractor" agent.
-    """
     model = genai.GenerativeModel('gemini-2.5-flash')
     
-    # This is the "hardened" prompt specifically for extracting entities from user text.
     prompt = f"""
     You are a highly intelligent data extraction API. Your sole purpose is to convert a user's free-text query into a structured JSON object.
 
@@ -66,7 +56,6 @@ async def parse_user_request(text: str) -> SearchQuery:
             generation_config={"response_mime_type": "application/json"}
         )
         
-        # Print for debugging, then parse the validated JSON
         print("----------- EXTRACTOR LLM RESPONSE TEXT -----------")
         print(response.text)
         print("-------------------------------------------------")
@@ -75,16 +64,10 @@ async def parse_user_request(text: str) -> SearchQuery:
         
     except Exception as e:
         print(f"An error occurred during the Extractor API call: {e}")
-        return SearchQuery()  # Return an empty object on failure
+        return SearchQuery()
 
 
 async def synthesize_profile(data_list: list) -> FinalProfile:
-    """
-    Uses Gemini Tool Calling to synthesize data from multiple sources into a final profile.
-    This is the "Synthesizer" agent.
-    """
-    
-    # This defines the 'submit_final_profile' tool that the LLM can call.
     tools = {
         "function_declarations": [
             {
@@ -109,7 +92,6 @@ async def synthesize_profile(data_list: list) -> FinalProfile:
         tools=tools,
     )
 
-    # This is the CORRECT prompt for the Synthesizer's job.
     prompt = f"""
     You are an expert intelligence analyst. Your job is to synthesize messy data points from multiple sources into a single, coherent profile.
 
@@ -124,21 +106,16 @@ async def synthesize_profile(data_list: list) -> FinalProfile:
     try:
         response = await model.generate_content_async(prompt)
 
-        # A direct and safe way to access the function call from the response
         function_call = response.candidates[0].content.parts[0].function_call
         
         if function_call.name == "submit_final_profile":
-            # The model has called our tool, now we get the arguments it provided
             args = {key: value for key, value in function_call.args.items()}
-            # Validate the arguments against our Pydantic schema and return
             return FinalProfile.model_validate(args)
         else:
-            # The model responded but didn't call the right tool
             raise ValueError("Model did not call the expected 'submit_final_profile' tool.")
 
     except (AttributeError, IndexError, Exception) as e:
         print("----------- RAW SYNTHESIZER RESPONSE (ERROR) -----------")
-        print(response) # Print the response to see why it failed
+        print(response)
         print("------------------------------------------------------")
-        # Handle cases where no function call is present or another error occurs
         raise ValueError(f"Failed to synthesize profile. Error: {e}")
