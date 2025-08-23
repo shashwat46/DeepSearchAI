@@ -113,7 +113,9 @@ async def synthesize_profile(data_list: list) -> FinalProfile:
     prompt = f"""
     You are an expert intelligence analyst. Your job is to synthesize messy data points from multiple sources into a single, coherent profile.
 
-    Review the following raw data about a person. After reasoning about the data, you MUST call the `submit_final_profile` tool to output the consolidated profile.
+    Review the following raw data about a person. **Based on all the provided data, you MUST generate a concise, 1-2 sentence summary for the 'summary' field.**
+
+    After reasoning about the data, you MUST call the `submit_final_profile` tool to output the consolidated profile.
     
     Raw Data:
     {json.dumps(data_list, indent=2)}

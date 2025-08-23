@@ -16,7 +16,30 @@
     <div class="container">
         <h1>🕵️ DeepSearch AI</h1>
         <form id="searchForm">
-            <textarea id="query" rows="4" cols="50" placeholder="Enter your search request" required></textarea>
+            <div>
+                <label>Name</label><br>
+                <input type="text" id="name" placeholder="Full name">
+            </div>
+            <div>
+                <label>Email</label><br>
+                <input type="text" id="email" placeholder="Email address">
+            </div>
+            <div>
+                <label>Phone</label><br>
+                <input type="text" id="phone" placeholder="Phone number">
+            </div>
+            <div>
+                <label>GitHub Username</label><br>
+                <input type="text" id="username" placeholder="GitHub username">
+            </div>
+            <div>
+                <label>Location</label><br>
+                <input type="text" id="location" placeholder="Location">
+            </div>
+            <div>
+                <label>Free-text context</label><br>
+                <textarea id="query" rows="4" cols="50" placeholder="Additional context"></textarea>
+            </div>
             <button type="submit">Search</button>
         </form>
         <div id="results"></div>
@@ -26,10 +49,15 @@
         document.getElementById('searchForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const freeText = document.getElementById('query').value.trim();
+            const payload = {
+                name: document.getElementById('name').value.trim() || null,
+                email: document.getElementById('email').value.trim() || null,
+                phone: document.getElementById('phone').value.trim() || null,
+                username: document.getElementById('username').value.trim() || null,
+                location: document.getElementById('location').value.trim() || null,
+                free_text_context: document.getElementById('query').value.trim() || null,
+            };
             const resultsDiv = document.getElementById('results');
-            
-            if (!freeText) return;
             
             resultsDiv.innerHTML = 'Searching...';
             
@@ -37,7 +65,7 @@
                 const response = await fetch('/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ free_text_context: freeText })
+                    body: JSON.stringify(payload)
                 });
                 
                 const data = await response.json();
