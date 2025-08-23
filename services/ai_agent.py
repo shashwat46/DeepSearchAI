@@ -1,20 +1,29 @@
 import os
 import json
 from dotenv import load_dotenv
-import google.generativeai as genai
 from schemas import SearchQuery, FinalProfile
 
 load_dotenv()
 
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
-    raise RuntimeError("GEMINI_API_KEY not set in environment. Please check your .env file.")
-genai.configure(api_key=api_key)
+_gen_model = None
+
+def _get_model():
+    global _gen_model
+    if _gen_model is not None:
+        return _gen_model
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    import google.generativeai as genai
+    genai.configure(api_key=api_key)
+    _gen_model = genai.GenerativeModel('gemini-2.5-flash')
+    return _gen_model
 
 
 async def parse_user_request(text: str) -> SearchQuery:
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    
+    model = _get_model()
+    if model is None:
+        return SearchQuery()
     prompt = f"""
     You are a highly intelligent data extraction API. Your sole purpose is to convert a user's free-text query into a structured JSON object.
 
@@ -55,19 +64,31 @@ async def parse_user_request(text: str) -> SearchQuery:
             prompt,
             generation_config={"response_mime_type": "application/json"}
         )
-        
         print("----------- EXTRACTOR LLM RESPONSE TEXT -----------")
         print(response.text)
         print("-------------------------------------------------")
-        
         return SearchQuery.model_validate_json(response.text)
-        
-    except Exception as e:
-        print(f"An error occurred during the Extractor API call: {e}")
+    except Exception:
         return SearchQuery()
 
 
 async def synthesize_profile(data_list: list) -> FinalProfile:
+    model = _get_model()
+    if model is None:
+        name = None
+        locations = []
+        for item in data_list:
+            raw = item.get("raw_data") or {}
+            if not name:
+                name = raw.get("name") or raw.get("full_name") or raw.get("username")
+            loc = raw.get("location") or raw.get("locations")
+            if isinstance(loc, str):
+                locations.append(loc)
+            elif isinstance(loc, list):
+                locations.extend([str(x) for x in loc])
+        full_name = name or "Unknown"
+        summary = "Consolidated profile from available sources."
+        return FinalProfile(full_name=full_name, summary=summary, locations=list(dict.fromkeys(locations)), employment_history=[])
     tools = {
         "function_declarations": [
             {
@@ -86,12 +107,8 @@ async def synthesize_profile(data_list: list) -> FinalProfile:
             }
         ]
     }
-
-    model = genai.GenerativeModel(
-        "gemini-2.5-flash",
-        tools=tools,
-    )
-
+    model = _get_model()
+    model = model.__class__("gemini-2.5-flash", tools=tools)
     prompt = f"""
     You are an expert intelligence analyst. Your job is to synthesize messy data points from multiple sources into a single, coherent profile.
 
@@ -105,17 +122,10 @@ async def synthesize_profile(data_list: list) -> FinalProfile:
 
     try:
         response = await model.generate_content_async(prompt)
-
         function_call = response.candidates[0].content.parts[0].function_call
-        
         if function_call.name == "submit_final_profile":
             args = {key: value for key, value in function_call.args.items()}
             return FinalProfile.model_validate(args)
-        else:
-            raise ValueError("Model did not call the expected 'submit_final_profile' tool.")
-
-    except (AttributeError, IndexError, Exception) as e:
-        print("----------- RAW SYNTHESIZER RESPONSE (ERROR) -----------")
-        print(response)
-        print("------------------------------------------------------")
+        raise ValueError("Model did not call the expected 'submit_final_profile' tool.")
+    except Exception as e:
         raise ValueError(f"Failed to synthesize profile. Error: {e}")

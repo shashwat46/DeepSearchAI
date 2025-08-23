@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from schemas import SearchQuery, FinalProfile
 from .ai_agent import parse_user_request, synthesize_profile
-from tools import ToolRegistry
+from tools.registry import ToolRegistry
 
 
 class SearchOrchestrator:
@@ -16,7 +16,7 @@ class SearchOrchestrator:
             for k, v in extracted.model_dump(exclude_none=True).items():
                 params.setdefault(k, v)
 
-        data_list = self.tool_registry.execute_tools(params)
+        data_list = await self.tool_registry.execute_tools(params)
 
         if not data_list:
             raise HTTPException(status_code=400, detail="Not enough information to run any searches.")

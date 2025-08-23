@@ -11,7 +11,7 @@ class GitHubTool(BaseTool):
     def can_handle(self, params: Dict[str, Any]) -> bool:
         return bool(params.get("username") or params.get("name"))
 
-    def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         username = params.get("username") or params.get("name")
         print(f"TOOL: Scraping GitHub for {username}…")
         profile = scrape_github_profile(username)
@@ -21,6 +21,6 @@ class GitHubTool(BaseTool):
         }
 
 
-def get_real_github_data(username: str) -> dict:
+async def get_real_github_data(username: str) -> dict:
     tool = GitHubTool()
-    return tool.execute({"username": username})
+    return await tool.execute({"username": username})

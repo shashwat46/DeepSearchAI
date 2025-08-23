@@ -1,5 +1,17 @@
-from .github import get_real_github_data
-from .numverify import get_phone_number_info
+from .github import GitHubTool
+from .numverify import NumverifyTool
 from .registry import ToolRegistry
+from .espy.email import EspyEmailTool
+from .espy.phone import EspyPhoneTool
+from .espy.name import EspyNameTool
+from .espy.deepweb import EspyDeepwebTool
 
-__all__ = ["get_real_github_data", "get_phone_number_info", "ToolRegistry"]
+__all__ = [
+    "ToolRegistry",
+    "GitHubTool",
+    "NumverifyTool",
+    "EspyEmailTool",
+    "EspyPhoneTool",
+    "EspyNameTool",
+    "EspyDeepwebTool",
+]

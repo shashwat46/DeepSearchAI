@@ -13,5 +13,5 @@ class BaseTool(ABC):
         pass
 
     @abstractmethod
-    def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         pass
