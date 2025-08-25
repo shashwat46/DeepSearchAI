@@ -7,16 +7,24 @@ class EspyDeepwebTool(BaseTool):
     def name(self) -> str:
         return "espy_deepweb"
 
+    @property
+    def stage(self) -> str:
+        return "deep"
+
     def can_handle(self, params: Dict[str, Any]) -> bool:
         return bool(params.get("email") or params.get("phone"))
 
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        value = params.get("email") or params.get("phone")
-        client = EspyClient()
-        print(f"TOOL: ESPY Deepweb/BreachScan for {value}...")
+        email = params.get("email")
+        phone = params.get("phone")
+        client = _CLIENT
+        print(f"TOOL: ESPY Deepweb/BreachScan for {email or phone}...")
+        # Deepweb expects: key, value, lookupId (lookupId resolved internally).
+        input_data = {"value": email or phone}
         result = await client.run_lookup(
             endpoint="/developer/deepweb",
-            value=value,
-            lookup_id=4  # Assuming lookupId for deepweb
+            input_data=input_data
         )
         return {"source": "ESPY-Deepweb", "raw_data": result}
+
+_CLIENT = EspyClient()

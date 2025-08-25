@@ -1,0 +1,27 @@
+[
+  {
+    "service": "twitter.com",
+    "module_path": "holehe.modules.social_media.twitter.twitter",
+    "aliases": ["x.com", "mobile.twitter.com"]
+  },
+  {
+    "service": "instagram.com",
+    "module_path": "holehe.modules.social_media.instagram.instagram",
+    "aliases": ["m.instagram.com"]
+  },
+  {
+    "service": "snapchat.com",
+    "module_path": "holehe.modules.social_media.snapchat.snapchat",
+    "aliases": []
+  },
+  {
+    "service": "spotify.com",
+    "module_path": "holehe.modules.music.spotify.spotify",
+    "aliases": []
+  },
+  {
+    "service": "replit.com",
+    "module_path": "holehe.modules.coding.replit.replit",
+    "aliases": []
+  }
+]

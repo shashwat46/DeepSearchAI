@@ -8,12 +8,26 @@ def test_api():
         
         test_data = {"username": "octocat"}
         response = requests.post('http://localhost:8000/search', json=test_data)
-        print(f"Search endpoint status: {response.status_code}")
-        
+        print(f"Shallow search status: {response.status_code}")
+        if response.status_code != 200:
+            print(f"Error: {response.text}")
+            return
+
+        candidates = response.json()
+        print("Candidates:")
+        print(json.dumps(candidates, indent=2, default=str))
+
+        if not candidates:
+            print("No candidates to enrich.")
+            return
+
+        candidate = candidates[0]
+        response = requests.post('http://localhost:8000/profile/enrich', json=candidate)
+        print(f"Deep enrich status: {response.status_code}")
         if response.status_code == 200:
-            result = response.json()
-            print("Search successful!")
-            print(json.dumps(result, indent=2, default=str))
+            profile = response.json()
+            print("FinalProfile:")
+            print(json.dumps(profile, indent=2, default=str))
         else:
             print(f"Error: {response.text}")
             

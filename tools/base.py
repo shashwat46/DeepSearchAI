@@ -8,6 +8,11 @@ class BaseTool(ABC):
     def name(self) -> str:
         pass
 
+    @property
+    @abstractmethod
+    def stage(self) -> str:
+        pass
+
     @abstractmethod
     def can_handle(self, params: Dict[str, Any]) -> bool:
         pass

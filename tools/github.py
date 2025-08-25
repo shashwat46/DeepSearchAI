@@ -8,11 +8,15 @@ class GitHubTool(BaseTool):
     def name(self) -> str:
         return "github"
 
+    @property
+    def stage(self) -> str:
+        return "shallow"
+
     def can_handle(self, params: Dict[str, Any]) -> bool:
-        return bool(params.get("username") or params.get("name"))
+        return bool(params.get("username"))
 
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        username = params.get("username") or params.get("name")
+        username = params.get("username")
         print(f"TOOL: Scraping GitHub for {username}…")
         profile = scrape_github_profile(username)
         return {

@@ -9,6 +9,10 @@ class NumverifyTool(BaseTool):
     def name(self) -> str:
         return "numverify"
 
+    @property
+    def stage(self) -> str:
+        return "shallow"
+
     def can_handle(self, params: Dict[str, Any]) -> bool:
         return bool(params.get("phone"))
 

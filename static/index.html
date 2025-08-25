@@ -43,6 +43,8 @@
             <button type="submit">Search</button>
         </form>
         <div id="results"></div>
+        <div id="candidates"></div>
+        <div id="profile"></div>
     </div>
 
     <script>
@@ -60,6 +62,7 @@
             const resultsDiv = document.getElementById('results');
             
             resultsDiv.innerHTML = 'Searching...';
+            console.log('[UI] Submitting payload', payload);
             
             try {
                 const response = await fetch('/search', {
@@ -69,16 +72,117 @@
                 });
                 
                 const data = await response.json();
+                console.log('[UI] /search status', response.status, 'ok', response.ok);
+                console.log('[UI] /search body', data);
                 
                 if (response.ok) {
-                    resultsDiv.innerHTML = JSON.stringify(data, null, 2);
+                    resultsDiv.innerHTML = '<h2>Shallow search complete</h2>';
+                    let candidatesData = [];
+                    let rawData = null;
+                    if (Array.isArray(data)) {
+                        candidatesData = data;
+                    } else if (data && typeof data === 'object') {
+                        candidatesData = Array.isArray(data.candidates) ? data.candidates : [];
+                        rawData = data.raw || null;
+                    }
+                    if (rawData !== null) {
+                        const pre = document.createElement('pre');
+                        pre.textContent = JSON.stringify(rawData, null, 2);
+                        resultsDiv.appendChild(pre);
+                    } else {
+                        const note = document.createElement('div');
+                        note.textContent = 'No raw tool output available.';
+                        resultsDiv.appendChild(note);
+                    }
+                    console.log('[UI] Rendering candidates', candidatesData);
+                    renderCandidates(candidatesData);
                 } else {
                     resultsDiv.innerHTML = `<span class="error">Error: ${data.detail}</span>`;
                 }
             } catch (error) {
                 resultsDiv.innerHTML = `<span class="error">Network error: ${error.message}</span>`;
+                console.error('[UI] /search error', error);
             }
         });
+
+        function renderCandidates(candidatesData) {
+            const container = document.getElementById('candidates');
+            container.innerHTML = '<h2>Candidates</h2>';
+            if (!Array.isArray(candidatesData) || candidatesData.length === 0) {
+                container.innerHTML += '<p>No candidates found</p>';
+                return;
+            }
+            candidatesData.forEach((c) => {
+                const div = document.createElement('div');
+                div.style.border = '1px solid #ddd';
+                div.style.padding = '10px';
+                div.style.marginTop = '10px';
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(c, null, 2);
+                const btn = document.createElement('button');
+                btn.textContent = 'Enrich Profile';
+                btn.onclick = () => enrichCandidate(c);
+                div.appendChild(pre);
+                div.appendChild(btn);
+                container.appendChild(div);
+            });
+        }
+
+        async function enrichCandidate(candidate) {
+            const profileDiv = document.getElementById('profile');
+            profileDiv.innerHTML = 'Enriching...';
+            try {
+                const res = await fetch('/profile/enrich', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(candidate)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    profileDiv.innerHTML = '<h2>Final Profile</h2>';
+                    const pre = document.createElement('pre');
+                    pre.textContent = JSON.stringify(data.profile || data, null, 2);
+                    profileDiv.appendChild(pre);
+                    const rawDiv = document.createElement('div');
+                    rawDiv.innerHTML = '<h3>Deep raw outputs</h3>';
+                    const rawPre = document.createElement('pre');
+                    rawPre.textContent = JSON.stringify(data.raw || [], null, 2);
+                    rawDiv.appendChild(rawPre);
+                    // If ESPY entries exist with requestId, render a refresh button
+                    const espyEntries = (data.raw || []).filter(x => x && x.source && x.source.startsWith('ESPY'));
+                    espyEntries.forEach(entry => {
+                        const rid = (entry.raw_data && (entry.raw_data.requestId || (entry.raw_data.last && entry.raw_data.last.requestId))) || null;
+                        if (rid) {
+                            const btn = document.createElement('button');
+                            btn.textContent = `Refresh ESPY ${rid}`;
+                            btn.onclick = async () => {
+                                btn.disabled = true;
+                                try {
+                                    const r = await fetch(`/espy/poll/${rid}`);
+                                    const j = await r.json();
+                                    const upd = document.createElement('pre');
+                                    upd.textContent = JSON.stringify(j, null, 2);
+                                    rawDiv.appendChild(upd);
+                                } catch (e) {
+                                    const err = document.createElement('div');
+                                    err.className = 'error';
+                                    err.textContent = `Refresh failed: ${e.message}`;
+                                    rawDiv.appendChild(err);
+                                } finally {
+                                    btn.disabled = false;
+                                }
+                            };
+                            rawDiv.appendChild(btn);
+                        }
+                    });
+                    profileDiv.appendChild(rawDiv);
+                } else {
+                    profileDiv.innerHTML = `<span class="error">Error: ${data.detail}</span>`;
+                }
+            } catch (e) {
+                profileDiv.innerHTML = `<span class="error">Network error: ${e.message}</span>`;
+            }
+        }
     </script>
 </body>
 </html>
