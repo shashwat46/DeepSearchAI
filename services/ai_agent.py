@@ -1,27 +1,13 @@
-import os
 import json
 from dotenv import load_dotenv
 from schemas import SearchQuery, FinalProfile
+from services.llm import get_gemini_model
 
 load_dotenv()
 
-_gen_model = None
-
-def _get_model():
-    global _gen_model
-    if _gen_model is not None:
-        return _gen_model
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return None
-    import google.generativeai as genai
-    genai.configure(api_key=api_key)
-    _gen_model = genai.GenerativeModel('gemini-2.5-flash')
-    return _gen_model
-
 
 async def parse_user_request(text: str) -> SearchQuery:
-    model = _get_model()
+    model = get_gemini_model(model_name="gemini-2.5-flash")
     if model is None:
         return SearchQuery()
     prompt = f"""
@@ -73,23 +59,7 @@ async def parse_user_request(text: str) -> SearchQuery:
 
 
 async def synthesize_profile(data_list: list) -> FinalProfile:
-    model = _get_model()
-    if model is None:
-        name = None
-        locations = []
-        for item in data_list:
-            raw = item.get("raw_data") or {}
-            if not name:
-                name = raw.get("name") or raw.get("full_name") or raw.get("username")
-            loc = raw.get("location") or raw.get("locations")
-            if isinstance(loc, str):
-                locations.append(loc)
-            elif isinstance(loc, list):
-                locations.extend([str(x) for x in loc])
-        full_name = name or "Unknown"
-        summary = "Consolidated profile from available sources."
-        return FinalProfile(full_name=full_name, summary=summary, locations=list(dict.fromkeys(locations)), employment_history=[])
-    tools = {
+    model = get_gemini_model(model_name="gemini-2.5-flash", tools={
         "function_declarations": [
             {
                 "name": "submit_final_profile",
@@ -106,9 +76,22 @@ async def synthesize_profile(data_list: list) -> FinalProfile:
                 },
             }
         ]
-    }
-    model = _get_model()
-    model = model.__class__("gemini-2.5-flash", tools=tools)
+    })
+    if model is None:
+        name = None
+        locations = []
+        for item in data_list:
+            raw = item.get("raw_data") or {}
+            if not name:
+                name = raw.get("name") or raw.get("full_name") or raw.get("username")
+            loc = raw.get("location") or raw.get("locations")
+            if isinstance(loc, str):
+                locations.append(loc)
+            elif isinstance(loc, list):
+                locations.extend([str(x) for x in loc])
+        full_name = name or "Unknown"
+        summary = "Consolidated profile from available sources."
+        return FinalProfile(full_name=full_name, summary=summary, locations=list(dict.fromkeys(locations)), employment_history=[])
     prompt = f"""
     You are an expert intelligence analyst. Your job is to synthesize messy data points from multiple sources into a single, coherent profile.
 

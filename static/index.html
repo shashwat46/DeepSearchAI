@@ -8,7 +8,7 @@
         input { padding: 12px; width: 300px; border: 1px solid #ddd; border-radius: 4px; }
         button { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
         button:hover { background: #0056b3; }
-        #results { margin-top: 20px; padding: 20px; background: white; border-radius: 4px; white-space: pre-wrap; }
+        #results, #plan, #candidates, #profile, #scrape { margin-top: 20px; padding: 20px; background: white; border-radius: 4px; white-space: pre-wrap; }
         .error { color: #dc3545; }
     </style>
 </head>
@@ -42,7 +42,9 @@
             </div>
             <button type="submit">Search</button>
         </form>
+        <div id="plan"></div>
         <div id="results"></div>
+        <div id="scrape"></div>
         <div id="candidates"></div>
         <div id="profile"></div>
     </div>
@@ -59,12 +61,25 @@
                 location: document.getElementById('location').value.trim() || null,
                 free_text_context: document.getElementById('query').value.trim() || null,
             };
+            const planDiv = document.getElementById('plan');
             const resultsDiv = document.getElementById('results');
+            const scrapeDiv = document.getElementById('scrape');
             
+            planDiv.innerHTML = 'Planning...';
             resultsDiv.innerHTML = 'Searching...';
+            scrapeDiv.innerHTML = '';
             console.log('[UI] Submitting payload', payload);
             
             try {
+                const planReq = fetch('/plan/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(async r => {
+                    const text = await r.text();
+                    try { return JSON.parse(text); } catch { return { error: 'invalid_json', raw: text, status: r.status }; }
+                });
+
                 const response = await fetch('/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -75,6 +90,35 @@
                 console.log('[UI] /search status', response.status, 'ok', response.ok);
                 console.log('[UI] /search body', data);
                 
+                let p = null;
+                try {
+                    p = await planReq;
+                    planDiv.innerHTML = '<h2>Plan</h2>';
+                    const pre = document.createElement('pre');
+                    pre.textContent = JSON.stringify(p, null, 2);
+                    planDiv.appendChild(pre);
+                } catch (err) {
+                    planDiv.innerHTML = `<span class="error">Plan error: ${err.message}</span>`;
+                }
+
+                if (p && p.steps && Array.isArray(p.steps)) {
+                    try {
+                        scrapeDiv.innerHTML = 'Executing plan (scrape steps only)...';
+                        const execRes = await fetch('/execute/plan', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(p)
+                        });
+                        const execJson = await execRes.json();
+                        scrapeDiv.innerHTML = '<h2>Scrape results</h2>';
+                        const preExec = document.createElement('pre');
+                        preExec.textContent = JSON.stringify(execJson, null, 2);
+                        scrapeDiv.appendChild(preExec);
+                    } catch (err) {
+                        scrapeDiv.innerHTML = `<span class="error">Execute error: ${err.message}</span>`;
+                    }
+                }
+
                 if (response.ok) {
                     resultsDiv.innerHTML = '<h2>Shallow search complete</h2>';
                     let candidatesData = [];

@@ -8,6 +8,9 @@ from .numverify import NumverifyTool
 from .holehe_cli import HoleheCliTool
 from .holehe_resolver import HoleheResolverTool
 from .espy.email import EspyEmailTool
+from .hyperbrowser.extract import HyperbrowserExtractTool
+from .hyperbrowser.scrape import HyperbrowserScrapeTool
+from .hyperbrowser.crawl import HyperbrowserCrawlTool
 # from .espy.deepweb import EspyDeepwebTool
 
 class ToolRegistry:
@@ -18,6 +21,9 @@ class ToolRegistry:
             HoleheCliTool(),
             HoleheResolverTool(),
             EspyEmailTool(),
+            HyperbrowserExtractTool(),
+            HyperbrowserScrapeTool(),
+            HyperbrowserCrawlTool(),
         ]
         self._log = logging.getLogger(__name__)
 

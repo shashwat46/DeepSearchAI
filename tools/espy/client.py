@@ -120,6 +120,12 @@ class EspyClient:
                     return poll_response
             # Return last response so caller sees current status/data, plus an error note
             return {"error": "Polling timed out for ESPY lookup.", "requestId": job_id, "last": last_response}
+        except httpx.HTTPStatusError as e:
+            self._log.error("ESPY HTTP error %s: %s", e.response.status_code, e.response.text[:200])
+            return {"error": f"HTTP error during ESPY lookup: {e.response.status_code}", "details": e.response.text}
+        except Exception as e:
+            self._log.exception("ESPY unexpected error during lookup")
+            return {"error": f"An unexpected error occurred during ESPY lookup: {str(e)}"}
 
     async def poll_request(self, request_id: int) -> Dict[str, Any]:
         if not self.api_key:
@@ -134,9 +140,3 @@ class EspyClient:
             return {"error": f"HTTP error during ESPY poll: {e.response.status_code}", "details": e.response.text}
         except Exception as e:
             return {"error": f"Unexpected error during ESPY poll: {str(e)}"}
-        except httpx.HTTPStatusError as e:
-            self._log.error("ESPY HTTP error %s: %s", e.response.status_code, e.response.text[:200])
-            return {"error": f"HTTP error during ESPY lookup: {e.response.status_code}", "details": e.response.text}
-        except Exception as e:
-            self._log.exception("ESPY unexpected error")
-            return {"error": f"An unexpected error occurred during ESPY lookup: {str(e)}"}

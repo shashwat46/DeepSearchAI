@@ -16,7 +16,7 @@ class EspyPhoneTool(BaseTool):
 
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         phone = params["phone"]
-        client = _CLIENT
+        client = EspyClient()
         print(f"TOOL: ESPY Phone lookup for {phone}...")
         result = await client.run_lookup(
             endpoint="/developer/combined_phone",

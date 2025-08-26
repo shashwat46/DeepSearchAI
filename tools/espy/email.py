@@ -17,7 +17,7 @@ class EspyEmailTool(BaseTool):
 
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         email = params["email"]
-        client = _CLIENT
+        client = EspyClient()
         print(f"TOOL: ESPY Email lookup for {email}...")
         # Align with ESPY two-step flow: start lookup (lookupId is resolved internally), then poll.
         result = await client.run_lookup(
@@ -26,5 +26,3 @@ class EspyEmailTool(BaseTool):
         )
         return {"source": "ESPY-Email", "raw_data": result}
 
-
-_CLIENT = EspyClient()
