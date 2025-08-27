@@ -3,6 +3,7 @@ import logging
 from schemas import SearchQuery, FinalProfile, Candidate
 from .ai_agent import parse_user_request, synthesize_profile
 from tools.registry import ToolRegistry
+from tools.hyperbrowser.scrape import HyperbrowserScrapeTool
 import phonenumbers
 
 
