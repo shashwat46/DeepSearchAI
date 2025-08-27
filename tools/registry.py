@@ -13,6 +13,7 @@ from .hyperbrowser.scrape import HyperbrowserScrapeTool
 from .hyperbrowser.crawl import HyperbrowserCrawlTool
 # from .espy.deepweb import EspyDeepwebTool
 from .ghunt import GHuntTool
+from .ignorant_cli import IgnorantCliTool
 
 class ToolRegistry:
     def __init__(self):
@@ -23,6 +24,7 @@ class ToolRegistry:
             HoleheResolverTool(),
             EspyEmailTool(),
             GHuntTool(),
+            IgnorantCliTool(),
             HyperbrowserExtractTool(),
             HyperbrowserScrapeTool(),
             HyperbrowserCrawlTool(),

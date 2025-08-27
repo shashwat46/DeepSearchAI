@@ -50,6 +50,16 @@ class SearchOrchestrator:
                         ex["used_services"] = data["used_services"]
                     if isinstance(data.get("used_service_ids"), list):
                         ex["used_service_ids"] = data["used_service_ids"]
+            # Attach Ignorant extras by phone key
+            if result.get("source") == "Ignorant":
+                phone = (data.get("phone") or "").strip()
+                if phone:
+                    key = f"phone:{phone}"
+                    ex = extras_by_key.setdefault(key, {})
+                    if isinstance(data.get("used_services"), list):
+                        ex["used_services"] = list(set((ex.get("used_services") or []) + data["used_services"]))
+                    if isinstance(data.get("used_service_ids"), list):
+                        ex["used_service_ids"] = list(set((ex.get("used_service_ids") or []) + data["used_service_ids"]))
             norm = self._normalize_data(data)
             key = self._generate_key(norm)
             if not key:
