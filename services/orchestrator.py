@@ -1,9 +1,11 @@
 from typing import List, Dict, Any, Optional
+import asyncio
 import logging
 from schemas import SearchQuery, FinalProfile, Candidate
 from .ai_agent import parse_user_request, synthesize_profile
 from tools.registry import ToolRegistry
 from tools.hyperbrowser.scrape import HyperbrowserScrapeTool
+from .analysis import IdentityAnalysisService
 import phonenumbers
 
 
@@ -11,6 +13,7 @@ class SearchOrchestrator:
     def __init__(self):
         self.tool_registry = ToolRegistry()
         self._log = logging.getLogger(__name__)
+        self._analysis = IdentityAnalysisService()
 
     async def perform_shallow_search(self, query: SearchQuery) -> Dict[str, Any]:
         params = query.model_dump(exclude_none=True)
@@ -21,8 +24,34 @@ class SearchOrchestrator:
                 params.setdefault(k, v)
         self._log.info("Shallow merged keys=%s", list(params.keys()))
         raw_results = await self.tool_registry.execute_tools(params, stage="shallow")
+
+        best_linkedin = self._extract_best_url(raw_results, source="LinkedIn-Finder")
+        best_x = self._extract_best_url(raw_results, source="X-Finder")
+        verify_params = dict(params)
+        if best_linkedin:
+            verify_params["linkedin_finder_best_url"] = best_linkedin
+        if best_x:
+            verify_params["x_finder_best_url"] = best_x
+        if best_linkedin or best_x:
+            tools = self.tool_registry.get_applicable_tools(verify_params, stage="shallow")
+            verify_names = {"linkedin_verify", "x_verify"}
+            verify_tools = [t for t in tools if getattr(t, "name", "") in verify_names]
+            if verify_tools:
+                tasks = [t.execute(verify_params) for t in verify_tools]
+                verify_results = await asyncio.gather(*tasks, return_exceptions=True)
+                for r in verify_results:
+                    if isinstance(r, Exception):
+                        raw_results.append({"source": "error", "raw_data": {}, "error": str(r)})
+                    else:
+                        raw_results.append(r)
+
         candidates = self._build_candidates_from_shallow(raw_results, params)
         self._log.info("Shallow candidates=%d", len(candidates))
+        try:
+            analysis = self._analysis.analyze(raw_results)
+            raw_results.append({"source": "Analysis", "raw_data": analysis})
+        except Exception:
+            pass
         return {"candidates": candidates, "raw": raw_results}
 
     async def perform_deep_search(self, candidate: Candidate) -> Dict[str, Any]:
@@ -81,7 +110,17 @@ class SearchOrchestrator:
             if key in merged:
                 merged[key].update(extras)
         ordered = sorted(merged.values(), key=self._candidate_strength_key, reverse=True)
-        return [Candidate(**c) for c in ordered]
+        distinct: List[Dict[str, Any]] = []
+        seen_keys: set = set()
+        for c in ordered:
+            k = self._generate_key(c)
+            if not k:
+                continue
+            if k in seen_keys:
+                continue
+            seen_keys.add(k)
+            distinct.append(c)
+        return [Candidate(**c) for c in distinct]
 
     def _normalize_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         out: Dict[str, Optional[str]] = {}
@@ -131,3 +170,12 @@ class SearchOrchestrator:
         if data.get("name"):
             score += 1
         return score
+
+    def _extract_best_url(self, raw_results: List[Dict[str, Any]], source: str) -> Optional[str]:
+        for item in raw_results:
+            if item.get("source") == source:
+                raw = item.get("raw_data") or {}
+                url = raw.get("best_url") or ""
+                if isinstance(url, str) and url:
+                    return url
+        return None

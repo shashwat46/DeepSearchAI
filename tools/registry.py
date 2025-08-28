@@ -14,11 +14,21 @@ from .hyperbrowser.crawl import HyperbrowserCrawlTool
 # from .espy.deepweb import EspyDeepwebTool
 from .ghunt import GHuntTool
 from .ignorant_cli import IgnorantCliTool
+from .github_extras import GitHubExtrasTool
+from .linkedin_finder import LinkedInFinderTool
+from .linkedin_verify import LinkedInVerifyTool
+from .x_finder import XFinderTool
+from .x_verify import XVerifyTool
 
 class ToolRegistry:
     def __init__(self):
         self._tools: List[BaseTool] = [
             GitHubTool(),
+            GitHubExtrasTool(),
+            LinkedInFinderTool(),
+            LinkedInVerifyTool(),
+            XFinderTool(),
+            XVerifyTool(),
             NumverifyTool(),
             HoleheCliTool(),
             HoleheResolverTool(),

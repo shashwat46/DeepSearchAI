@@ -106,6 +106,8 @@ class IgnorantCliTool(BaseTool):
             if not mark:
                 continue
             status, label = mark
+            if label.lower().startswith("phone number used"):
+                continue
             canon = canonicalize_service(label)
             if not canon:
                 continue
