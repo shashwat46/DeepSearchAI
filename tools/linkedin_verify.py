@@ -29,7 +29,7 @@ class LinkedInVerifyTool(BaseTool):
         api_key = os.getenv("SCRAPINGDOG_API_KEY")
         url = params.get("linkedin_finder_best_url")
         timeout_s = int(os.getenv("LINKEDIN_VERIFY_TIMEOUT_S", "30"))
-        country = os.getenv("LINKEDIN_VERIFY_COUNTRY", "US")
+        country = (params.get("country") or os.getenv("LINKEDIN_VERIFY_COUNTRY", "US"))
         try:
             r = requests.get(
                 "https://api.scrapingdog.com/scrape",

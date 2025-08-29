@@ -27,14 +27,14 @@ class XFinderTool(BaseTool):
         username = (params.get("username") or "").strip().lstrip("@")
         location = (params.get("location") or "").strip()
         company = (params.get("company") or "").strip()
-        context = (params.get("free_text_context") or "").strip()
+        hint = (params.get("search_hint") or "").strip()
         max_queries = int(os.getenv("X_FINDER_MAX_QUERIES", "4"))
         max_results = int(os.getenv("X_MAX_RESULTS", "3"))
         mkt_default = os.getenv("X_FINDER_MKT_DEFAULT", "en-US")
         timeout_s = int(os.getenv("X_FINDER_TIMEOUT_S", "10"))
 
         mkt = self._infer_mkt(location) or mkt_default
-        queries = self._build_queries(name, username, company, location, context)[:max_queries]
+        queries = self._build_queries(name, username, company, location, hint)[:max_queries]
         seen: Dict[str, float] = {}
 
         async with httpx.AsyncClient(timeout=timeout_s) as client:
@@ -70,15 +70,12 @@ class XFinderTool(BaseTool):
             },
         }
 
-    def _build_queries(self, name: str, username: str, company: str, city: str, context: str) -> List[str]:
+    def _build_queries(self, name: str, username: str, company: str, city: str, hint: str) -> List[str]:
         n = f'"{name}"' if name else ""
         u = f' "{username}"' if username else ""
         c = f' "{company}"' if company else ""
         ct = f' "{city}"' if city else ""
-        ctx = ""
-        if context:
-            s = re.sub(r"\s+", " ", context)[:120]
-            ctx = f' "{s}"'
+        ctx = f' "{re.sub(r"\\s+", " ", hint)[:50]}"' if hint else ""
         dorks = [
             f"site:twitter.com {n}{u}{c}{ct}{ctx}".strip(),
             f"site:x.com {n}{u}{c}{ct}{ctx}".strip(),

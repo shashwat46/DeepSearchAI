@@ -17,7 +17,8 @@ class GitHubExtrasTool(BaseTool):
         return "shallow"
 
     def _enabled(self) -> bool:
-        return os.getenv("GITHUB_EXTRAS_ENABLE", "false").lower() == "true"
+        # Enable by default to maximize GitHub signal coverage
+        return os.getenv("GITHUB_EXTRAS_ENABLE", "true").lower() == "true"
 
     def can_handle(self, params: Dict[str, Any]) -> bool:
         return self._enabled() and bool(params.get("username"))

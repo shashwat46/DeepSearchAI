@@ -2,10 +2,14 @@ from typing import List, Dict, Any, Optional
 import asyncio
 import logging
 from schemas import SearchQuery, FinalProfile, Candidate
-from .ai_agent import parse_user_request, synthesize_profile
+from .ai_agent import parse_user_request, synthesize_profile, generate_search_hint
 from tools.registry import ToolRegistry
-from tools.hyperbrowser.scrape import HyperbrowserScrapeTool
+from tools.linkedin_finder import LinkedInFinderTool
+from tools.linkedin_verify import LinkedInVerifyTool
 from .analysis import IdentityAnalysisService
+from .link_cache import LinkCache
+from .region import RegionResolver
+from .geocoding import geocode_location, country_to_mkt
 import phonenumbers
 
 
@@ -14,6 +18,8 @@ class SearchOrchestrator:
         self.tool_registry = ToolRegistry()
         self._log = logging.getLogger(__name__)
         self._analysis = IdentityAnalysisService()
+        self._link_cache = LinkCache()
+        self._region = RegionResolver()
 
     async def perform_shallow_search(self, query: SearchQuery) -> Dict[str, Any]:
         params = query.model_dump(exclude_none=True)
@@ -23,11 +29,51 @@ class SearchOrchestrator:
             for k, v in extracted.model_dump(exclude_none=True).items():
                 params.setdefault(k, v)
         self._log.info("Shallow merged keys=%s", list(params.keys()))
+        if params.get("location"):
+            try:
+                geo = await geocode_location(params["location"], language="en")
+                if not geo.get("error"):
+                    raw_geo = {"source": "OpenCage", "raw_data": geo}
+                    cc = (geo.get("components") or {}).get("country_code")
+                    if cc:
+                        params.setdefault("country", cc)
+                        params.setdefault("mkt", country_to_mkt(cc))
+                else:
+                    raw_geo = {"source": "OpenCage", "raw_data": geo}
+            except Exception as e:
+                raw_geo = {"source": "OpenCage", "raw_data": {"error": str(e)}}
+        else:
+            raw_geo = None
+
+        region = self._region.infer(params)
+        if region.get("mkt"):
+            params.setdefault("mkt", region["mkt"])
+        if region.get("country"):
+            params.setdefault("country", region["country"])
+        if params.get("free_text_context"):
+            hint = await generate_search_hint(params["free_text_context"])
+            if hint:
+                params.setdefault("search_hint", hint)
         raw_results = await self.tool_registry.execute_tools(params, stage="shallow")
+        if raw_geo:
+            raw_results.insert(0, raw_geo)
 
         best_linkedin = self._extract_best_url(raw_results, source="LinkedIn-Finder")
         best_x = self._extract_best_url(raw_results, source="X-Finder")
         verify_params = dict(params)
+        fp = LinkCache.fingerprint(verify_params)
+        if not best_linkedin:
+            cached_li = self._link_cache.get_best("linkedin", fp)
+            if cached_li:
+                best_linkedin = cached_li
+        else:
+            self._link_cache.set_best("linkedin", fp, best_linkedin)
+        if not best_x:
+            cached_x = self._link_cache.get_best("x", fp)
+            if cached_x:
+                best_x = cached_x
+        else:
+            self._link_cache.set_best("x", fp, best_x)
         if best_linkedin:
             verify_params["linkedin_finder_best_url"] = best_linkedin
         if best_x:
@@ -58,6 +104,21 @@ class SearchOrchestrator:
         params = candidate.model_dump(exclude_none=True)
         self._log.info("Deep input candidate keys=%s", list(params.keys()))
         deep_results = await self.tool_registry.execute_tools(params, stage="deep")
+
+        try:
+            fp = LinkCache.fingerprint(params)
+            best_li = self._link_cache.get_best("linkedin", fp)
+            if not best_li and params.get("email"):
+                best_li = None
+            if best_li:
+                li_verify = LinkedInVerifyTool()
+                ver_params = dict(params)
+                ver_params["linkedin_finder_best_url"] = best_li
+                if li_verify.can_handle(ver_params):
+                    vres = await li_verify.execute(ver_params)
+                    deep_results.append(vres)
+        except Exception as e:
+            deep_results.append({"source": "error", "raw_data": {}, "error": str(e)})
         agg = [{"source": "candidate", "raw_data": params}] + deep_results
         profile = await synthesize_profile(agg)
         return {"profile": profile, "raw": deep_results}
@@ -109,7 +170,36 @@ class SearchOrchestrator:
         for key, extras in extras_by_key.items():
             if key in merged:
                 merged[key].update(extras)
-        ordered = sorted(merged.values(), key=self._candidate_strength_key, reverse=True)
+
+        # Deterministic safe merge: collapse candidates that share same name+location
+        # This merges username/name-only clusters when both agree on identity signals.
+        by_name_loc: Dict[str, Dict[str, Any]] = {}
+        keep_others: List[Dict[str, Any]] = []
+        for c in merged.values():
+            name = (c.get("name") or "").strip()
+            loc = (c.get("location") or "").strip()
+            if name and loc:
+                k = f"{name.lower()}|{loc.lower()}"
+                existing = by_name_loc.get(k)
+                if existing:
+                    # Merge fields conservatively: prefer existing non-empty; union lists
+                    for f in ("email", "phone", "username", "name", "location"):
+                        if not existing.get(f) and c.get(f):
+                            existing[f] = c[f]
+                    # Union extras if present
+                    for lf in ("used_services", "used_service_ids"):
+                        a = existing.get(lf) or []
+                        b = c.get(lf) or []
+                        if isinstance(a, list) or isinstance(b, list):
+                            s = set(a if isinstance(a, list) else []) | set(b if isinstance(b, list) else [])
+                            existing[lf] = list(s)
+                else:
+                    by_name_loc[k] = dict(c)
+            else:
+                keep_others.append(c)
+
+        merged_collapsed: List[Dict[str, Any]] = list(by_name_loc.values()) + keep_others
+        ordered = sorted(merged_collapsed, key=self._candidate_strength_key, reverse=True)
         distinct: List[Dict[str, Any]] = []
         seen_keys: set = set()
         for c in ordered:

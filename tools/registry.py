@@ -1,17 +1,15 @@
 import asyncio
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from .base import BaseTool
 from .github import GitHubTool
 from .numverify import NumverifyTool
-# ESPY tools temporarily disabled
 from .holehe_cli import HoleheCliTool
 from .holehe_resolver import HoleheResolverTool
-from .espy.email import EspyEmailTool
 from .hyperbrowser.extract import HyperbrowserExtractTool
 from .hyperbrowser.scrape import HyperbrowserScrapeTool
 from .hyperbrowser.crawl import HyperbrowserCrawlTool
-# from .espy.deepweb import EspyDeepwebTool
 from .ghunt import GHuntTool
 from .ignorant_cli import IgnorantCliTool
 from .github_extras import GitHubExtrasTool
@@ -19,10 +17,12 @@ from .linkedin_finder import LinkedInFinderTool
 from .linkedin_verify import LinkedInVerifyTool
 from .x_finder import XFinderTool
 from .x_verify import XVerifyTool
+from .espy.email import EspyEmailTool
 
 class ToolRegistry:
     def __init__(self):
-        self._tools: List[BaseTool] = [
+        espy_enabled = os.getenv("ESPY_ENABLE", "false").lower() == "true"
+        tools: List[BaseTool] = [
             GitHubTool(),
             GitHubExtrasTool(),
             LinkedInFinderTool(),
@@ -32,13 +32,15 @@ class ToolRegistry:
             NumverifyTool(),
             HoleheCliTool(),
             HoleheResolverTool(),
-            EspyEmailTool(),
             GHuntTool(),
             IgnorantCliTool(),
             HyperbrowserExtractTool(),
             HyperbrowserScrapeTool(),
             HyperbrowserCrawlTool(),
         ]
+        if espy_enabled:
+            tools.append(EspyEmailTool())
+        self._tools = tools
         self._log = logging.getLogger(__name__)
 
     def get_tools_by_stage(self, stage: str) -> List[BaseTool]:

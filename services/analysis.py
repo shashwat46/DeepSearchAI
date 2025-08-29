@@ -4,11 +4,11 @@ from typing import List, Dict, Any, Tuple, Set
 class IdentityAnalysisService:
     def analyze(self, raw_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         signals = {
-            "email": self._collect_values(raw_results, self._extract_email, {"Holehe", "GHunt", "ESPY-Email"}),
+            "email": self._collect_values(raw_results, self._extract_email, {"Holehe", "GHunt", "ESPY-Email", "GitHub-Extras"}),
             "phone": self._collect_values(raw_results, self._extract_phone, {"Ignorant", "Numverify", "ESPY-Phone"}),
-            "username": self._collect_values(raw_results, self._extract_username, {"GitHub"}),
+            "username": self._collect_values(raw_results, self._extract_username, {"GitHub", "GitHub-Extras"}),
             "name": self._collect_values(raw_results, self._extract_name, {"GitHub"}),
-            "location": self._collect_values(raw_results, self._extract_location, {"GitHub", "user_input"}),
+            "location": self._collect_values(raw_results, self._extract_location, {"GitHub", "GitHub-Extras", "user_input", "OpenCage"}),
         }
 
         signal_analysis: Dict[str, Dict[str, Any]] = {}
@@ -60,6 +60,8 @@ class IdentityAnalysisService:
         if source == "ESPY-Email":
             v = raw.get("value") or raw.get("email")
             return (v or "").strip().lower()
+        if source == "GitHub-Extras":
+            return (raw.get("email") or "").strip().lower()
         return ""
 
     def _extract_phone(self, source: str, raw: Dict[str, Any]) -> str:
@@ -76,6 +78,8 @@ class IdentityAnalysisService:
     def _extract_username(self, source: str, raw: Dict[str, Any]) -> str:
         if source == "GitHub":
             return (raw.get("username") or raw.get("login") or "").strip().lower()
+        if source == "GitHub-Extras":
+            return (raw.get("username") or "").strip().lower()
         return ""
 
     def _extract_name(self, source: str, raw: Dict[str, Any]) -> str:
@@ -86,8 +90,17 @@ class IdentityAnalysisService:
     def _extract_location(self, source: str, raw: Dict[str, Any]) -> str:
         if source == "GitHub":
             return (raw.get("location") or "").strip()
+        if source == "GitHub-Extras":
+            return (raw.get("location") or "").strip()
         if source == "user_input":
             return (raw.get("location") or "").strip()
+        if source == "OpenCage":
+            comps = raw.get("components") or {}
+            city = (comps.get("city") or "").strip()
+            cc = (comps.get("country_code") or "").upper()
+            if city and cc:
+                return f"{city}, {cc}"
+            return cc
         return ""
 
     def _average_confidence(self, key: str, entries: List[Tuple[str, str]]) -> float:

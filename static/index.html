@@ -10,6 +10,21 @@
         button:hover { background: #0056b3; }
         #results, #plan, #candidates, #profile, #scrape { margin-top: 20px; padding: 20px; background: white; border-radius: 4px; white-space: pre-wrap; }
         .error { color: #dc3545; }
+        /* --- Minimal UI polish for rectangular candidate cards & image strip --- */
+        .candidate-card { display: flex; flex-direction: column; gap: 10px; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-top: 10px; background: #fff; }
+        .candidate-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .candidate-main { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .kv { display: flex; gap: 8px; font-family: monospace; white-space: normal; word-break: break-word; }
+        .kv .k { color: #555; min-width: 90px; }
+        .images-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+        .images-strip a { display: inline-block; border: 1px solid #eee; border-radius: 6px; overflow: hidden; }
+        .images-strip img { width: 72px; height: 72px; object-fit: cover; display: block; }
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .chip { background: #eef2ff; color: #1e3a8a; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        details.raw { margin-top: 12px; }
+        details.raw > summary { cursor: pointer; user-select: none; }
+        .merge-bar { display: flex; align-items: center; gap: 10px; margin: 8px 0 14px; }
+        .merge-bar .count { color: #555; }
     </style>
 </head>
 <body>
@@ -50,6 +65,9 @@
     </div>
 
     <script>
+        // Keep last results in memory for UI rendering
+        window.__lastShallowRaw = [];
+        window.__lastPlan = null;
         document.getElementById('searchForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -93,10 +111,17 @@
                 let p = null;
                 try {
                     p = await planReq;
+                    window.__lastPlan = p;
                     planDiv.innerHTML = '<h2>Plan</h2>';
+                    const details = document.createElement('details');
+                    details.className = 'raw';
+                    const summary = document.createElement('summary');
+                    summary.textContent = 'Show generated plan (JSON)';
                     const pre = document.createElement('pre');
                     pre.textContent = JSON.stringify(p, null, 2);
-                    planDiv.appendChild(pre);
+                    details.appendChild(summary);
+                    details.appendChild(pre);
+                    planDiv.appendChild(details);
                 } catch (err) {
                     planDiv.innerHTML = `<span class="error">Plan error: ${err.message}</span>`;
                 }
@@ -111,9 +136,15 @@
                         });
                         const execJson = await execRes.json();
                         scrapeDiv.innerHTML = '<h2>Scrape results</h2>';
+                        const details = document.createElement('details');
+                        details.className = 'raw';
+                        const summary = document.createElement('summary');
+                        summary.textContent = 'Show scrape results (JSON)';
                         const preExec = document.createElement('pre');
                         preExec.textContent = JSON.stringify(execJson, null, 2);
-                        scrapeDiv.appendChild(preExec);
+                        details.appendChild(summary);
+                        details.appendChild(preExec);
+                        scrapeDiv.appendChild(details);
                     } catch (err) {
                         scrapeDiv.innerHTML = `<span class="error">Execute error: ${err.message}</span>`;
                     }
@@ -129,15 +160,16 @@
                         candidatesData = Array.isArray(data.candidates) ? data.candidates : [];
                         rawData = data.raw || null;
                     }
-                    if (rawData !== null) {
-                        const pre = document.createElement('pre');
-                        pre.textContent = JSON.stringify(rawData, null, 2);
-                        resultsDiv.appendChild(pre);
-                    } else {
-                        const note = document.createElement('div');
-                        note.textContent = 'No raw tool output available.';
-                        resultsDiv.appendChild(note);
-                    }
+                    window.__lastShallowRaw = Array.isArray(rawData) ? rawData : [];
+                    const shallowRawDetails = document.createElement('details');
+                    shallowRawDetails.className = 'raw';
+                    const shallowSummary = document.createElement('summary');
+                    shallowSummary.textContent = 'Show raw shallow outputs (JSON)';
+                    const shallowPre = document.createElement('pre');
+                    shallowPre.textContent = rawData !== null ? JSON.stringify(rawData, null, 2) : 'No raw tool output available.';
+                    shallowRawDetails.appendChild(shallowSummary);
+                    shallowRawDetails.appendChild(shallowPre);
+                    resultsDiv.appendChild(shallowRawDetails);
                     console.log('[UI] Rendering candidates', candidatesData);
                     renderCandidates(candidatesData);
                 } else {
@@ -156,20 +188,196 @@
                 container.innerHTML += '<p>No candidates found</p>';
                 return;
             }
+            const selected = new Set();
+            const bar = document.createElement('div');
+            bar.className = 'merge-bar';
+            const mergeBtn = document.createElement('button');
+            mergeBtn.textContent = 'Merge Selected & Enrich';
+            mergeBtn.disabled = true;
+            const countEl = document.createElement('span');
+            countEl.className = 'count';
+            countEl.textContent = 'Select 2+ candidates to merge';
+            mergeBtn.onclick = () => {
+                const chosen = Array.from(selected.values());
+                if (chosen.length === 0) return;
+                const merged = mergeCandidatesDeterministic(chosen);
+                enrichCandidate(merged);
+            };
+            bar.appendChild(mergeBtn);
+            bar.appendChild(countEl);
+            container.appendChild(bar);
+            function updateBar() {
+                const n = selected.size;
+                mergeBtn.disabled = n < 1;
+                countEl.textContent = n >= 2 ? `${n} selected` : (n === 1 ? '1 selected' : 'Select 2+ candidates to merge');
+            }
             candidatesData.forEach((c) => {
-                const div = document.createElement('div');
-                div.style.border = '1px solid #ddd';
-                div.style.padding = '10px';
-                div.style.marginTop = '10px';
-                const pre = document.createElement('pre');
-                pre.textContent = JSON.stringify(c, null, 2);
+                const card = document.createElement('div');
+                card.className = 'candidate-card';
+
+                const header = document.createElement('div');
+                header.className = 'candidate-header';
+                const title = document.createElement('div');
+                title.innerHTML = `<strong>${c.name || c.username || c.email || c.phone || 'Candidate'}</strong>`;
                 const btn = document.createElement('button');
                 btn.textContent = 'Enrich Profile';
                 btn.onclick = () => enrichCandidate(c);
-                div.appendChild(pre);
-                div.appendChild(btn);
-                container.appendChild(div);
+                header.appendChild(title);
+                header.appendChild(btn);
+
+                const selWrap = document.createElement('div');
+                selWrap.style.display = 'flex';
+                selWrap.style.alignItems = 'center';
+                selWrap.style.justifyContent = 'space-between';
+                const cbLabel = document.createElement('label');
+                cbLabel.style.display = 'flex';
+                cbLabel.style.alignItems = 'center';
+                cbLabel.style.gap = '6px';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.onchange = () => {
+                    if (cb.checked) selected.add(c); else selected.delete(c);
+                    updateBar();
+                };
+                const cbText = document.createElement('span');
+                cbText.textContent = 'Select';
+                cbLabel.appendChild(cb);
+                cbLabel.appendChild(cbText);
+                selWrap.appendChild(header);
+                selWrap.appendChild(cbLabel);
+
+                const main = document.createElement('div');
+                main.className = 'candidate-main';
+                const fields = [
+                    ['Name', c.name],
+                    ['Email', c.email],
+                    ['Phone', c.phone],
+                    ['Username', c.username],
+                    ['Location', c.location],
+                ];
+                fields.forEach(([k, v]) => {
+                    if (!v) return;
+                    const row = document.createElement('div');
+                    row.className = 'kv';
+                    const kk = document.createElement('div');
+                    kk.className = 'k';
+                    kk.textContent = k + ':';
+                    const vv = document.createElement('div');
+                    vv.className = 'v';
+                    vv.textContent = String(v);
+                    row.appendChild(kk);
+                    row.appendChild(vv);
+                    main.appendChild(row);
+                });
+
+                // Images strip
+                const images = extractImagesForCandidate(c, window.__lastShallowRaw || []);
+                if (images.length > 0) {
+                    const imgStrip = document.createElement('div');
+                    imgStrip.className = 'images-strip';
+                    images.forEach(img => {
+                        const a = document.createElement('a');
+                        a.href = img.link || img.url;
+                        a.target = '_blank';
+                        a.rel = 'noopener';
+                        const imageEl = document.createElement('img');
+                        imageEl.src = img.url;
+                        imageEl.alt = img.label;
+                        imageEl.title = img.label;
+                        a.appendChild(imageEl);
+                        imgStrip.appendChild(a);
+                    });
+                    main.appendChild(imgStrip);
+                }
+
+                if (Array.isArray(c.used_services) && c.used_services.length > 0) {
+                    const chips = document.createElement('div');
+                    chips.className = 'chips';
+                    c.used_services.forEach(s => {
+                        const chip = document.createElement('span');
+                        chip.className = 'chip';
+                        chip.textContent = s;
+                        chips.appendChild(chip);
+                    });
+                    main.appendChild(chips);
+                }
+
+                const details = document.createElement('details');
+                details.className = 'raw';
+                const summary = document.createElement('summary');
+                summary.textContent = 'Show candidate JSON';
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(c, null, 2);
+                details.appendChild(summary);
+                details.appendChild(pre);
+
+                card.appendChild(selWrap);
+                card.appendChild(main);
+                card.appendChild(details);
+                container.appendChild(card);
             });
+        }
+
+        function mergeCandidatesDeterministic(list) {
+            const merged = { name: null, email: null, phone: null, username: null, location: null, used_services: [], used_service_ids: [] };
+            const prefer = (field) => {
+                for (const c of list) {
+                    if (c && c[field] && !merged[field]) { merged[field] = c[field]; }
+                }
+            };
+            prefer('email');
+            prefer('phone');
+            prefer('username');
+            prefer('name');
+            prefer('location');
+            const us = new Set();
+            const usi = new Set();
+            for (const c of list) {
+                (Array.isArray(c.used_services) ? c.used_services : []).forEach(x => us.add(x));
+                (Array.isArray(c.used_service_ids) ? c.used_service_ids : []).forEach(x => usi.add(x));
+            }
+            merged.used_services = Array.from(us);
+            merged.used_service_ids = Array.from(usi);
+            return merged;
+        }
+
+        function extractImagesForCandidate(candidate, raw) {
+            const images = [];
+            const email = (candidate.email || '').trim().toLowerCase();
+            const username = (candidate.username || '').trim().toLowerCase();
+            const name = (candidate.name || '').trim().toLowerCase();
+
+            // GHunt (Google) — match by email
+            const ghunt = (raw || []).find(r => r && r.source === 'GHunt' && r.raw_data && (r.raw_data.email || '').toLowerCase() === email);
+            const gImg = ghunt && ghunt.raw_data && ghunt.raw_data.google_osint && ghunt.raw_data.google_osint.profile_image_url;
+            const gLink = ghunt && ghunt.raw_data && ghunt.raw_data.google_osint && ghunt.raw_data.google_osint.reviews_url;
+            if (gImg) images.push({ platform: 'google', label: 'Google', url: gImg, link: gLink || gImg });
+
+            // LinkedIn photo from Verify (choose first or by name)
+            const liItems = (raw || []).filter(r => r && (r.source === 'LinkedIn-Verify'));
+            let li = null;
+            if (liItems.length === 1) li = liItems[0];
+            else if (liItems.length > 1) li = liItems.find(r => name && ((r.raw_data && (r.raw_data.name || '').toLowerCase().includes(name))));
+            const liPhoto = li && li.raw_data && li.raw_data.photo;
+            const liFinder = (raw || []).find(r => r && r.source === 'LinkedIn-Finder');
+            const liUrl = liFinder && liFinder.raw_data && liFinder.raw_data.best_url;
+            if (liPhoto) images.push({ platform: 'linkedin', label: 'LinkedIn', url: liPhoto, link: liUrl || liPhoto });
+
+            // X photo from X-Verify
+            const xVerify = (raw || []).find(r => r && r.source === 'X-Verify');
+            const xRaw = xVerify && xVerify.raw_data || {};
+            const xPhoto = xRaw.profile_image_url || xRaw.profile_imageUrl || xRaw.profile_image || xRaw.profileImageUrl || xRaw.avatar || xRaw.image || '';
+            const xFinder = (raw || []).find(r => r && r.source === 'X-Finder');
+            const xUrl = xFinder && xFinder.raw_data && xFinder.raw_data.best_url;
+            if (xPhoto) images.push({ platform: 'x', label: 'X', url: xPhoto, link: xUrl || xPhoto });
+
+            // GitHub avatar by username
+            if (username) {
+                const ghAvatar = `https://avatars.githubusercontent.com/${encodeURIComponent(username)}`;
+                images.push({ platform: 'github', label: 'GitHub', url: ghAvatar, link: `https://github.com/${encodeURIComponent(username)}` });
+            }
+
+            return images;
         }
 
         async function enrichCandidate(candidate) {
@@ -184,42 +392,87 @@
                 const data = await res.json();
                 if (res.ok) {
                     profileDiv.innerHTML = '<h2>Final Profile</h2>';
-                    const pre = document.createElement('pre');
-                    pre.textContent = JSON.stringify(data.profile || data, null, 2);
-                    profileDiv.appendChild(pre);
-                    const rawDiv = document.createElement('div');
-                    rawDiv.innerHTML = '<h3>Deep raw outputs</h3>';
+
+                    const profile = data.profile || data;
+                    const block = document.createElement('div');
+                    const h3 = document.createElement('h3');
+                    h3.textContent = profile.full_name || candidate.name || candidate.username || 'Profile';
+                    const summary = document.createElement('p');
+                    summary.textContent = profile.summary || 'No summary available.';
+
+                    const locTitle = document.createElement('div');
+                    locTitle.innerHTML = '<strong>Locations</strong>';
+                    const chips = document.createElement('div');
+                    chips.className = 'chips';
+                    (Array.isArray(profile.locations) ? profile.locations : []).forEach(l => {
+                        const chip = document.createElement('span');
+                        chip.className = 'chip';
+                        chip.textContent = l;
+                        chips.appendChild(chip);
+                    });
+
+                    const empTitle = document.createElement('div');
+                    empTitle.innerHTML = '<strong>Employment history</strong>';
+                    const empList = document.createElement('ul');
+                    (Array.isArray(profile.employment_history) ? profile.employment_history : []).forEach(item => {
+                        const li = document.createElement('li');
+                        const company = item.company || item.organisation || item.org || '';
+                        const role = item.role || item.title || '';
+                        const start = item.start || item.start_date || '';
+                        const end = item.end || item.end_date || '';
+                        li.textContent = [role, company, [start, end].filter(Boolean).join(' - ')].filter(Boolean).join(' @ ');
+                        empList.appendChild(li);
+                    });
+
+                    block.appendChild(h3);
+                    block.appendChild(summary);
+                    block.appendChild(locTitle);
+                    block.appendChild(chips);
+                    block.appendChild(empTitle);
+                    block.appendChild(empList);
+                    profileDiv.appendChild(block);
+
+                    const espyEntries = (data.raw || []).filter(x => x && x.source && x.source.startsWith('ESPY'));
+                    if (espyEntries.length > 0) {
+                        const espyControls = document.createElement('div');
+                        espyControls.style.marginTop = '10px';
+                        espyEntries.forEach(entry => {
+                            const rid = (entry.raw_data && (entry.raw_data.requestId || (entry.raw_data.last && entry.raw_data.last.requestId))) || null;
+                            if (rid) {
+                                const btn = document.createElement('button');
+                                btn.textContent = `Refresh ESPY ${rid}`;
+                                btn.onclick = async () => {
+                                    btn.disabled = true;
+                                    try {
+                                        const r = await fetch(`/espy/poll/${rid}`);
+                                        const j = await r.json();
+                                        const upd = document.createElement('pre');
+                                        upd.textContent = JSON.stringify(j, null, 2);
+                                        espyControls.appendChild(upd);
+                                    } catch (e) {
+                                        const err = document.createElement('div');
+                                        err.className = 'error';
+                                        err.textContent = `Refresh failed: ${e.message}`;
+                                        espyControls.appendChild(err);
+                                    } finally {
+                                        btn.disabled = false;
+                                    }
+                                };
+                                espyControls.appendChild(btn);
+                            }
+                        });
+                        profileDiv.appendChild(espyControls);
+                    }
+
+                    const rawDetails = document.createElement('details');
+                    rawDetails.className = 'raw';
+                    const rawSummary = document.createElement('summary');
+                    rawSummary.textContent = 'Show raw deep outputs (JSON)';
                     const rawPre = document.createElement('pre');
                     rawPre.textContent = JSON.stringify(data.raw || [], null, 2);
-                    rawDiv.appendChild(rawPre);
-                    // If ESPY entries exist with requestId, render a refresh button
-                    const espyEntries = (data.raw || []).filter(x => x && x.source && x.source.startsWith('ESPY'));
-                    espyEntries.forEach(entry => {
-                        const rid = (entry.raw_data && (entry.raw_data.requestId || (entry.raw_data.last && entry.raw_data.last.requestId))) || null;
-                        if (rid) {
-                            const btn = document.createElement('button');
-                            btn.textContent = `Refresh ESPY ${rid}`;
-                            btn.onclick = async () => {
-                                btn.disabled = true;
-                                try {
-                                    const r = await fetch(`/espy/poll/${rid}`);
-                                    const j = await r.json();
-                                    const upd = document.createElement('pre');
-                                    upd.textContent = JSON.stringify(j, null, 2);
-                                    rawDiv.appendChild(upd);
-                                } catch (e) {
-                                    const err = document.createElement('div');
-                                    err.className = 'error';
-                                    err.textContent = `Refresh failed: ${e.message}`;
-                                    rawDiv.appendChild(err);
-                                } finally {
-                                    btn.disabled = false;
-                                }
-                            };
-                            rawDiv.appendChild(btn);
-                        }
-                    });
-                    profileDiv.appendChild(rawDiv);
+                    rawDetails.appendChild(rawSummary);
+                    rawDetails.appendChild(rawPre);
+                    profileDiv.appendChild(rawDetails);
                 } else {
                     profileDiv.innerHTML = `<span class="error">Error: ${data.detail}</span>`;
                 }

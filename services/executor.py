@@ -7,16 +7,19 @@ from tools.hyperbrowser.scrape import HyperbrowserScrapeTool
 _ALLOWED_HOSTS = set(
     (os.getenv("SCRAPE_ALLOWLIST_HOSTS", "github.com,x.com,medium.com,dev.to").split(","))
 )
+_ALLOWLIST_ENABLED = os.getenv("SCRAPE_ALLOWLIST_ENABLE", "false").lower() == "true"
 
 
 def _is_host_allowed(url: str) -> bool:
+    if not _ALLOWLIST_ENABLED:
+        return True
     try:
         from urllib.parse import urlparse
 
         host = urlparse(url).hostname or ""
         return any(host.endswith(h.strip()) for h in _ALLOWED_HOSTS if h.strip())
     except Exception:
-        return False
+        return True
 
 
 def _filter_urls(urls: List[str], limit: int) -> List[str]:
@@ -24,8 +27,12 @@ def _filter_urls(urls: List[str], limit: int) -> List[str]:
     for u in urls:
         if len(out) >= limit:
             break
-        if isinstance(u, str) and _is_host_allowed(u):
-            out.append(u)
+        if isinstance(u, str) and u.strip():
+            if _is_host_allowed(u):
+                out.append(u)
+    # If allowlist filtered everything and flag is off, fall back to first N non-empty
+    if not out and not _ALLOWLIST_ENABLED:
+        out = [u for u in urls if isinstance(u, str) and u.strip()][:limit]
     return out
 
 
@@ -44,7 +51,7 @@ async def execute_plan_scrape_only(plan: PlanResponse) -> List[Dict[str, Any]]:
             continue
         filtered = _filter_urls(urls, max_urls)
         if not filtered:
-            results.append({"source": "Hyperbrowser-Scrape", "raw_data": {"error": "no_allowed_urls"}, "meta": {"urls": urls}})
+            results.append({"source": "Hyperbrowser-Scrape", "raw_data": {"error": "no_urls"}, "meta": {"urls": urls}})
             continue
         params: Dict[str, Any] = {
             "hyperbrowser": {

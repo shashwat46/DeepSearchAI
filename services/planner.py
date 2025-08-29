@@ -50,15 +50,7 @@ _TOOL_MANIFEST = {
                 "required": ["url"]
             }
         },
-        {
-            "name": "espy_email",
-            "description": "High-cost email enrichment; use only after strong identity match.",
-            "parameters": {
-                "type": "OBJECT",
-                "properties": {"email": {"type": "STRING"}},
-                "required": ["email"]
-            }
-        },
+        # ESPY disabled by default for cost; can re-enable via env and manifest later
         {
             "name": "espy_phone",
             "description": "High-cost phone enrichment; use only after strong identity match.",
@@ -133,7 +125,9 @@ def _extract_json_object(s: str) -> str:
 
 
 async def generate_plan(stage: str, params: Dict[str, Any]) -> PlanResponse:
-    model = get_gemini_model(model_name="gemini-2.5-flash")
+    import os
+    model_name = os.getenv("GEMINI_PLANNER_MODEL", "gemini-2.5-flash")
+    model = get_gemini_model(model_name=model_name)
     if model is None:
         return PlanResponse(steps=[], finish_if="Model unavailable", budget=_DEFAULT_BUDGET)
     guidance = {

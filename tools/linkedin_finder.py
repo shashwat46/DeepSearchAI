@@ -27,14 +27,14 @@ class LinkedInFinderTool(BaseTool):
         name = (params.get("name") or "").strip()
         location = (params.get("location") or "").strip()
         company = (params.get("company") or "").strip()
-        context = (params.get("free_text_context") or "").strip()
+        hint = (params.get("search_hint") or "").strip()
         max_queries = int(os.getenv("LINKEDIN_FINDER_MAX_QUERIES", "4"))
         max_results = int(os.getenv("LINKEDIN_MAX_RESULTS", "3"))
         mkt_default = os.getenv("LINKEDIN_FINDER_MKT_DEFAULT", "en-US")
         timeout_s = int(os.getenv("LINKEDIN_FINDER_TIMEOUT_S", "10"))
 
         mkt = self._infer_mkt(location) or mkt_default
-        queries = self._build_queries(name, company, location, context)[:max_queries]
+        queries = self._build_queries(name, company, location, hint)[:max_queries]
         seen: Dict[str, float] = {}
 
         async with httpx.AsyncClient(timeout=timeout_s) as client:
@@ -70,15 +70,11 @@ class LinkedInFinderTool(BaseTool):
             },
         }
 
-    def _build_queries(self, name: str, company: str, city: str, context: str) -> List[str]:
+    def _build_queries(self, name: str, company: str, city: str, hint: str) -> List[str]:
         parts_name = f'"{name}"' if name else ""
         parts_company = f' "{company}"' if company else ""
         parts_city = f' "{city}"' if city else ""
-        parts_ctx = ""
-        if context:
-            ctx = re.sub(r"\s+", " ", context)
-            ctx = ctx[:120]
-            parts_ctx = f' "{ctx}"'
+        parts_ctx = f' "{re.sub(r"\\s+", " ", hint)[:50]}"' if hint else ""
         q1 = f"site:linkedin.com/in {parts_name}{parts_company}{parts_city}{parts_ctx}".strip()
         q2 = f"site:linkedin.com/in {parts_name}{parts_company}".strip()
         q3 = f"site:linkedin.com/in {parts_name}{parts_city}".strip()
