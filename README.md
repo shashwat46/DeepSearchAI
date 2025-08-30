@@ -73,6 +73,24 @@ Request payloads follow `schemas.py` (`SearchQuery`, `Candidate`). Responses use
 - Hyperbrowser scrape/extract/crawl are used when URLs are available or inferred.
 - Judge pass enforces evidence-first policy, resolves conflicts, assigns confidences, and records provenance.
 
+## Sample run screenshots
+
+- Input form
+
+  ![Input form](screenshots/Input.png)
+
+- Generated plan (JSON)
+
+  ![Plan JSON](screenshots/plan.png)
+
+- Candidates list
+
+  ![Candidates](screenshots/candidates.png)
+
+- Final profile (judged)
+
+  ![Final profile](screenshots/FinalProfile.png)
+
 ## Tools used
 
 - Holehe CLI: Email enumeration across services; fast signal for account presence.
