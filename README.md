@@ -72,3 +72,26 @@ Request payloads follow `schemas.py` (`SearchQuery`, `Candidate`). Responses use
 - ESPY tools are optional; gated by `ESPY_ENABLE`.
 - Hyperbrowser scrape/extract/crawl are used when URLs are available or inferred.
 - Judge pass enforces evidence-first policy, resolves conflicts, assigns confidences, and records provenance.
+
+## Tools used
+
+- Holehe CLI: Email enumeration across services; fast signal for account presence.
+- GHunt: Google ecosystem OSINT (accounts, artifacts) from public signals.
+- Ignorant CLI: Phone/email checks for service usage signals.
+- Hyperbrowser (Scrape/Extract/Crawl): Headless browser automation with extraction, crawling, and markdown scraping; supports proxy/stealth.
+- GitHub + GitHub Extras: User/org discovery, repo heuristics, and profile enrichment.
+- LinkedIn Finder + Verify: SERP-based discovery and verification via scraping adapter.
+- X (Twitter) Finder + Verify: SERP-based discovery and verification for X profiles.
+- Numverify: Phone validation and metadata enrichment.
+- ESPY Suite (optional): Email/phone/name deep enrichment, court records, deep web.
+
+Environment hints: `GEMINI_API_KEY`, `NUMVERIFY_API_KEY`, `HYPERBROWSER_API_KEY`, `ESPY_API_KEY`, `SCRAPINGDOG_API_KEY`, `SERPAPI_API_KEY`, plus feature toggles like `LINKEDIN_*`, `X_*`, `ESPY_ENABLE`.
+
+## Extensions / Enterprise software sources
+
+| Vendor | Enterprise price | Included usage (enterprise) | Notes |
+|---|---:|---|---|
+| People Data Labs | Custom, ~$2,500+/month commonly cited | Custom credit volumes for person/company/IP; premium fields; dedicated support; custom integrations | Official page shows plans but not pricing; multiple sources place enterprise starting “around $2,500/month” with effective person-credit costs trending toward ~$0.20 at high volume. Annual enterprise often spans ~$30k–$100k+. |
+| Intelligence X | €20,000+/year (Enterprise) | 5,000+ selector searches/day; 2,500+ phonebook lookups/day; unlimited alerts; multi-user | Other tiers: API at €7,000/year with 500 selectors/day; Identity Portal at €10,000/year; enterprise raises daily caps and access scope. |
+| Pipl | Custom (contact sales) | API person/identity search with enterprise SLAs; quotas undisclosed publicly | Public enterprise pricing not listed; third-party overviews suggest four-figure monthly minimums with per-search or volume-based pricing, but figures vary and are negotiated. Treat as “custom, likely 4–5 figures monthly” depending on scale. |
+| CrustData | Custom (contact sales) | Real-time API and/or flat-file datasets; refresh cadence and user seats negotiated | Trackers indicate no free plan; some products mention entry paid tiers for limited searches, but enterprise is quote-based, often combining bulk datasets plus API for deltas. |
