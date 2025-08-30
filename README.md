@@ -11,6 +11,17 @@ DeepSearch AI is an MVP backend for background check and identity discovery. Giv
 - Performs a judge pass via LLM to validate, score confidence, and add provenance
 - Returns candidates (shallow) and a judged FinalProfile (deep)
 
+## Tech stack
+
+- Backend: FastAPI, Pydantic, Uvicorn, asyncio
+- LLM: Google Gemini (google.generativeai)
+- Scraping/OSINT tools: Hyperbrowser SDK (scrape/extract/crawl), Requests + BeautifulSoup, GHunt, Holehe CLI, Ignorant CLI
+- Discovery/Verify: LinkedIn (finder/verify via SerpAPI + ScrapingDog), X (finder/verify via SerpAPI/ScrapingDog), GitHub + GitHub Extras
+- Data APIs: Numverify, ESPY (optional suite)
+- Geocoding/Region: OpenCage API, simple region inference
+- Frontend: Static HTML + vanilla JS
+- Utilities: python-dotenv, phonenumbers
+
 ## High-level architecture
 
 ![High-level architecture](SystemDesign.png)

@@ -34,10 +34,8 @@ class Candidate(BaseModel):
     location: Optional[str] = None
     used_services: Optional[List[str]] = None
     used_service_ids: Optional[List[str]] = None
-    # Optional: include google_osint summary if available in UI hops later
-    # Keeping minimal to avoid breaking existing consumers
 
-# --- Hyperbrowser integration models ---
+
 
 class HyperbrowserSessionOptions(BaseModel):
     use_proxy: Optional[bool] = None
