@@ -10,6 +10,7 @@ from .analysis import IdentityAnalysisService
 from .link_cache import LinkCache
 from .region import RegionResolver
 from .geocoding import geocode_location, country_to_mkt
+from .judge import ProfileJudge
 import phonenumbers
 
 
@@ -20,6 +21,7 @@ class SearchOrchestrator:
         self._analysis = IdentityAnalysisService()
         self._link_cache = LinkCache()
         self._region = RegionResolver()
+        self._judge = ProfileJudge()
 
     async def perform_shallow_search(self, query: SearchQuery) -> Dict[str, Any]:
         params = query.model_dump(exclude_none=True)
@@ -121,6 +123,10 @@ class SearchOrchestrator:
             deep_results.append({"source": "error", "raw_data": {}, "error": str(e)})
         agg = [{"source": "candidate", "raw_data": params}] + deep_results
         profile = await synthesize_profile(agg)
+        judge_res = await self._judge.judge(profile, deep_results)
+        if isinstance(judge_res, dict) and judge_res.get("judged_profile"):
+            deep_results.append({"source": "Judge", "raw_data": {k: (v.model_dump() if hasattr(v, 'model_dump') else v) for k, v in judge_res.items()}})
+            profile = judge_res["judged_profile"]
         return {"profile": profile, "raw": deep_results}
 
     def _build_candidates_from_shallow(self, raw_results: List[Dict[str, Any]], seed_params: Dict[str, Any]) -> List[Candidate]:

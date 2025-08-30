@@ -218,7 +218,8 @@
                 const header = document.createElement('div');
                 header.className = 'candidate-header';
                 const title = document.createElement('div');
-                title.innerHTML = `<strong>${c.name || c.username || c.email || c.phone || 'Candidate'}</strong>`;
+                const conf = computeCandidateConfidence(c, window.__lastShallowRaw || []);
+                title.innerHTML = `<strong>${c.name || c.username || c.email || c.phone || 'Candidate'}</strong> <span style="color:#555;font-weight:normal">(Confidence: ${(conf*100).toFixed(0)}%)</span>`;
                 const btn = document.createElement('button');
                 btn.textContent = 'Enrich Profile';
                 btn.onclick = () => enrichCandidate(c);
@@ -316,6 +317,19 @@
                 card.appendChild(details);
                 container.appendChild(card);
             });
+        }
+
+        function computeCandidateConfidence(c, raw) {
+            let score = 0;
+            const max = 8 + 4 + 2 + 1;
+            if (c && c.email) score += 8;
+            if (c && c.phone) score += 4;
+            if (c && c.username) score += 2;
+            if (c && c.name) score += 1;
+            // Optional small boost if LinkedIn-Verify exists
+            const hasLiVerify = Array.isArray(raw) && raw.some(r => r && r.source === 'LinkedIn-Verify' && r.raw_data && (r.raw_data.name || r.raw_data.location));
+            if (hasLiVerify) score += 1; // gentle boost
+            return Math.max(0, Math.min(1, score / (max + 1)));
         }
 
         function mergeCandidatesDeterministic(list) {

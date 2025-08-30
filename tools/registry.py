@@ -18,6 +18,10 @@ from .linkedin_verify import LinkedInVerifyTool
 from .x_finder import XFinderTool
 from .x_verify import XVerifyTool
 from .espy.email import EspyEmailTool
+from .espy.court_records import EspyCourtRecordsTool
+from .espy.phone import EspyPhoneTool
+from .espy.name import EspyNameTool
+from .espy.deepweb import EspyDeepwebTool
 
 class ToolRegistry:
     def __init__(self):
@@ -40,6 +44,10 @@ class ToolRegistry:
         ]
         if espy_enabled:
             tools.append(EspyEmailTool())
+            tools.append(EspyCourtRecordsTool())
+            tools.append(EspyPhoneTool())
+            tools.append(EspyNameTool())
+            tools.append(EspyDeepwebTool())
         self._tools = tools
         self._log = logging.getLogger(__name__)
 
