@@ -1,11 +1,13 @@
 from typing import List, Dict, Any, Optional
 import asyncio
 import logging
+import os
 from schemas import SearchQuery, FinalProfile, Candidate
 from .ai_agent import parse_user_request, synthesize_profile, generate_search_hint
 from tools.registry import ToolRegistry
 from tools.linkedin_finder import LinkedInFinderTool
 from tools.linkedin_verify import LinkedInVerifyTool
+from tools.ghunt import GHuntTool
 from .analysis import IdentityAnalysisService
 from .link_cache import LinkCache
 from .region import RegionResolver
@@ -105,7 +107,34 @@ class SearchOrchestrator:
     async def perform_deep_search(self, candidate: Candidate) -> Dict[str, Any]:
         params = candidate.model_dump(exclude_none=True)
         self._log.info("Deep input candidate keys=%s", list(params.keys()))
+
+        # Optionally discover Google Reviews URL (GHunt) and queue a scrape
+        additional_results: List[Dict[str, Any]] = []
+        try:
+            ghunt = GHuntTool()
+            if ghunt.can_handle(params):
+                gh_res = await ghunt.execute(params)
+                additional_results.append(gh_res)
+                reviews_url = (((gh_res or {}).get("raw_data") or {}).get("google_osint") or {}).get("reviews_url") or ""
+                if isinstance(reviews_url, str) and reviews_url:
+                    # Inject Hyperbrowser scrape request so it participates in deep tool execution
+                    scrape_timeout = int(os.getenv("HYPERBROWSER_SCRAPE_PER_REQUEST_TIMEOUT_MS", os.getenv("HYPERBROWSER_SCRAPE_TIMEOUT_MS", os.getenv("HYPERBROWSER_TIMEOUT_MS", "30000"))))
+                    params.setdefault("hyperbrowser", {})
+                    hb = params["hyperbrowser"]
+                    hb.setdefault("scrape", {})
+                    hb_scrape = hb["scrape"]
+                    hb_scrape.setdefault("urls", [])
+                    if reviews_url not in hb_scrape["urls"]:
+                        hb_scrape["urls"].append(reviews_url)
+                    hb_scrape.setdefault("formats", ["markdown"])  # compact, easy to LLM
+                    hb_scrape.setdefault("only_main_content", True)
+                    hb_scrape.setdefault("timeout_ms", scrape_timeout)
+        except Exception as e:
+            additional_results.append({"source": "GHunt", "raw_data": {"error": str(e)}})
+
         deep_results = await self.tool_registry.execute_tools(params, stage="deep")
+        if additional_results:
+            deep_results = additional_results + deep_results
 
         try:
             fp = LinkCache.fingerprint(params)
